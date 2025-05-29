@@ -13,11 +13,12 @@ import 'pages/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  // await dotenv.load(fileName: ".env");
 
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    url: 'https://xlcifyhnyidxbmuxqhov.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsY2lmeWhueWlkeGJtdXhxaG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg0NDY2NjgsImV4cCI6MjA2NDAyMjY2OH0.xz0jZapaRENbSIahllbNZk1q50Fde1oAn7kHnDLQlfw',
   );
 
   Get.put(AuthController());
