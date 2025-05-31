@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'glass_card.dart';
 
 class WatchCard extends StatelessWidget {
-  final String title, subtitle, price, location;
+  final String title;
+  final String subtitle;
+  final String price;
+  final String location;
+  final String imagePath;
+  final bool availability;
 
   const WatchCard({
     super.key,
@@ -10,6 +15,8 @@ class WatchCard extends StatelessWidget {
     required this.subtitle,
     required this.price,
     required this.location,
+    required this.imagePath,
+    required this.availability,
   });
 
   @override
@@ -26,7 +33,22 @@ class WatchCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               color: Colors.white24,
             ),
-            child: const Icon(Icons.watch, color: Colors.white),
+            child:
+                imagePath.isEmpty
+                    ? const Icon(Icons.watch, color: Colors.white, size: 28)
+                    : ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        imagePath,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (context, error, stackTrace) => const Icon(
+                              Icons.watch,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                      ),
+                    ),
           ),
           title: Text(title, style: const TextStyle(color: Colors.white)),
           subtitle: Column(
@@ -34,6 +56,14 @@ class WatchCard extends StatelessWidget {
             children: [
               Text(subtitle, style: const TextStyle(color: Colors.white70)),
               Text(location, style: const TextStyle(color: Colors.white38)),
+              const SizedBox(height: 4),
+              Text(
+                availability ? "Available" : "Not Available",
+                style: TextStyle(
+                  color: availability ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           trailing: Column(

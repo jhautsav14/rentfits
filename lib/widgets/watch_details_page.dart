@@ -1,4 +1,11 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:smartwatch_rent_web/controllers/nav_controller.dart';
+import 'package:smartwatch_rent_web/pages/main_home.dart';
+import 'package:smartwatch_rent_web/pages/rentals_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WatchDetailsPage extends StatefulWidget {
   final String title;
@@ -7,6 +14,8 @@ class WatchDetailsPage extends StatefulWidget {
   final int price;
   final String location;
   final List<String> features;
+  final bool availability; // NEW
+  final String watchId;
 
   const WatchDetailsPage({
     super.key,
@@ -16,6 +25,8 @@ class WatchDetailsPage extends StatefulWidget {
     required this.price,
     required this.location,
     required this.features,
+    required this.availability,
+    required this.watchId,
   });
 
   @override
@@ -26,6 +37,44 @@ class _WatchDetailsPageState extends State<WatchDetailsPage> {
   int rentalHours = 1;
 
   int get total => widget.price * rentalHours + 0;
+
+  Future<void> rentNow() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        Get.snackbar("Error", "User not authenticated");
+        return;
+      }
+
+      // 1️⃣ Generate 6-digit OTP
+      final otp = (Random().nextInt(9000) + 1000).toString();
+
+      // 2️⃣ Insert rental record
+      await Supabase.instance.client.from('rentals').insert({
+        'user_id': user.id,
+        'watch_id': widget.watchId,
+        'otp': otp,
+        'otp_sent_time': DateTime.now().toUtc().toIso8601String(),
+
+        'status': 'pending',
+        'cost': total,
+        'rental_duration': rentalHours,
+      });
+
+      Get.snackbar(
+        "Rental Created",
+        "OTP: $otp\nUse this OTP to start your rental.",
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      // 1️⃣ Close WatchDetailsPage
+      Get.off(() => MainHomePage());
+      final navCtrl = Get.find<NavController>();
+      navCtrl.changePage(2); // RentalsPage index// Go back to previous page
+    } catch (e) {
+      print("error creating rental: $e");
+      Get.snackbar("Error", "Failed to start rental: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,28 +124,65 @@ class _WatchDetailsPageState extends State<WatchDetailsPage> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
-                      child: Image.asset(
-                        widget.imagePath,
-                        height: 180,
-                        fit: BoxFit.cover,
+                      child:
+                          widget.imagePath.isEmpty
+                              ? const Icon(
+                                Icons.watch,
+                                color: Colors.white,
+                                size: 80,
+                              )
+                              : widget.imagePath.startsWith('http')
+                              ? Image.network(
+                                widget.imagePath,
+                                height: 180,
+                                width: 180,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (context, error, stackTrace) => const Icon(
+                                      Icons.watch,
+                                      color: Colors.white,
+                                      size: 80,
+                                    ),
+                              )
+                              : Image.asset(
+                                widget.imagePath,
+                                height: 180,
+                                width: 180,
+                                fit: BoxFit.cover,
+                              ),
+                    ),
+                  ),
+                  widget.availability
+                      ? Container(
+                        margin: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const Text(
+                          "Available",
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      )
+                      : Container(
+                        margin: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const Text(
+                          "Not Available",
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
                       ),
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.all(12),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: const Text(
-                      "Available",
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -244,42 +330,54 @@ class _WatchDetailsPageState extends State<WatchDetailsPage> {
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.flash_on),
-              label: Text("Rent Now ₹$total"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.cyan,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(60),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        child:
+            widget.availability
+                ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.flash_on),
+                      label: Text("Rent Now ₹$total"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.cyan,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(60),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => rentNow(),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.map),
+                      label: const Text("View on Map"),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white24),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        // Open map
+                      },
+                    ),
+                  ],
+                )
+                : Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    "This watch is currently not available for rent.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
-              onPressed: () {
-                // Handle rent action
-              },
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.map),
-              label: const Text("View on Map"),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white24),
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () {
-                // Open map
-              },
-            ),
-          ],
-        ),
       ),
     );
   }

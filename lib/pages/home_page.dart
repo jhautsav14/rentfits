@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:smartwatch_rent_web/components/glass_card.dart';
 import 'package:smartwatch_rent_web/components/watch_card.dart';
 import 'package:smartwatch_rent_web/controllers/auth_controller.dart';
@@ -14,7 +15,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final authCtrl = Get.find<AuthController>();
-  int _selectedIndex = 0;
+  final supabase = Supabase.instance.client;
+
+  bool isLoading = true;
+  List<dynamic> watches = [];
 
   @override
   void initState() {
@@ -22,7 +26,23 @@ class _HomePageState extends State<HomePage> {
     Future.delayed(Duration.zero, () {
       authCtrl.fetchProfile();
       authCtrl.fetchLocation();
+      fetchWatches();
     });
+  }
+
+  Future<void> fetchWatches() async {
+    try {
+      final response = await supabase.from('watches').select('*');
+      setState(() {
+        watches = response;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      Get.snackbar("Error", "Failed to fetch watches: $e");
+    }
   }
 
   @override
@@ -64,7 +84,7 @@ class _HomePageState extends State<HomePage> {
                                         Colors.purpleAccent,
                                       ],
                                     ).createShader(
-                                      Rect.fromLTWH(0, 0, 200, 70),
+                                      const Rect.fromLTWH(0, 0, 200, 70),
                                     ),
                             ),
                           ),
@@ -125,86 +145,51 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: ListView(
-                    children: [
-                      InkWell(
-                        onTap:
-                            () => Get.to(
-                              () => WatchDetailsPage(
-                                title: "Apple Watch Series 9",
-                                subtitle: "45mm GPS",
-                                imagePath: "assets/apple.jpg",
-                                price: 150,
-                                location:
-                                    "Connaught Place, Delhi • 0.5 km away",
-                                features: [
-                                  "GPS",
-                                  "Heart Rate",
-                                  "ECG",
-                                  "Always-On Display",
-                                ],
-                              ),
+                  child:
+                      isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : watches.isEmpty
+                          ? const Center(
+                            child: Text(
+                              "No watches available",
+                              style: TextStyle(color: Colors.white70),
                             ),
-                        child: const WatchCard(
-                          title: "Apple Watch Series 9",
-                          subtitle: "45mm GPS",
-                          price: "₹150",
-                          location: "Connaught Place, Delhi",
-                        ),
-                      ),
-                      InkWell(
-                        onTap:
-                            () => Get.to(
-                              () => WatchDetailsPage(
-                                title: "Samsung Galaxy Watch 6",
-                                subtitle: "44mm LTE",
-                                imagePath:
-                                    "assets/samsung.png", // You might want to add this image
-                                price: 120,
-                                location:
-                                    "Bandra West, Mumbai • 1.2 km away", // Adjusted example
-                                features: [
-                                  "LTE",
-                                  "Heart Rate",
-                                  "ECG",
-                                  "Sleep Tracking",
-                                ],
-                              ),
-                            ),
-                        child: const WatchCard(
-                          title: "Samsung Galaxy Watch 6",
-                          subtitle: "44mm LTE",
-                          price: "₹120",
-                          location: "Bandra West, Mumbai",
-                        ),
-                      ),
-                      InkWell(
-                        onTap:
-                            () => Get.to(
-                              () => WatchDetailsPage(
-                                title: "Fitbit Versa 4",
-                                subtitle: "Solar Edition",
-                                imagePath:
-                                    "assets/fit.jpg", // You might want to add this image
-                                price: 200,
-                                location:
-                                    "Koramangala, Bangalore • 0.8 km away", // Adjusted example
-                                features: [
-                                  "Solar Charging",
-                                  "GPS",
-                                  "Advanced Running Metrics",
-                                ],
-                              ),
-                            ),
-                        child: const WatchCard(
-                          title: "Fitbit Versa 4",
-                          subtitle: "Solar Edition",
-                          price: "₹200",
-                          location: "Koramangala, Bangalore",
-                        ),
-                      ),
-                    ],
-                  ),
+                          )
+                          : ListView(
+                            children:
+                                watches.map((watch) {
+                                  return InkWell(
+                                    onTap: () async {
+                                      await fetchWatches();
+                                      Get.to(
+                                        () => WatchDetailsPage(
+                                          watchId:
+                                              watch['id'], // 🔥 Pass watchId
+                                          title: watch['title'],
+                                          subtitle: watch['subtitle'],
+                                          imagePath: watch['image_url'] ?? '',
+                                          price: watch['price_per_hour'] ?? 0,
+                                          location: watch['location'] ?? '',
+                                          availability:
+                                              watch['availability'] ?? false,
+                                          features: List<String>.from(
+                                            watch['features'] ?? [],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: WatchCard(
+                                      title: watch['title'],
+                                      subtitle: watch['subtitle'],
+                                      price: "₹${watch['price_per_hour'] ?? 0}",
+                                      location: watch['location'] ?? '',
+                                      imagePath: watch['image_url'] ?? '',
+                                      availability:
+                                          watch['availability'] ?? false,
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
                 ),
               ],
             ),
